@@ -22,7 +22,7 @@ To stop service:
 
 
 Please check 
-``depsmanager-backend/docs/swagger.yaml``
+``docs/swagger.yaml``
 
 ---
 ## Database structure
