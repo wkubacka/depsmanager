@@ -110,24 +110,6 @@ func (_m *Storage) StoreDependencies(ctx context.Context, deps depsmanager.Proje
 	return r0
 }
 
-// UpdateProject provides a mock function with given fields: ctx, deps
-func (_m *Storage) UpdateProject(ctx context.Context, deps depsmanager.ProjectDependencyRecord) error {
-	ret := _m.Called(ctx, deps)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateProject")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, depsmanager.ProjectDependencyRecord) error); ok {
-		r0 = rf(ctx, deps)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // NewStorage creates a new instance of Storage. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewStorage(t interface {

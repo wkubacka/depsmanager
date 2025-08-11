@@ -7,5 +7,6 @@ type Config struct {
 }
 
 type SQLLiteConfig struct {
-	DBPath string `envconfig:"DB_PATH" default:"./deps.db"`
+	DBPath      string `envconfig:"DB_PATH" default:"./deps.db"`
+	BusyTimeout int64  `envconfig:"BUSY_TIMEOUT" default:"5000"`
 }

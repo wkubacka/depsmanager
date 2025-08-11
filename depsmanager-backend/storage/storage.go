@@ -17,7 +17,7 @@ type Storage struct {
 }
 
 func NewStorage(conf depsmanager.SQLLiteConfig) (*Storage, error) {
-	db, err := sqlx.Open("sqlite3", fmt.Sprintf("%s?_foreign_keys=on", conf.DBPath))
+	db, err := sqlx.Open("sqlite3", fmt.Sprintf("%s?_foreign_keys=on&_busy_timeout=%v", conf.DBPath, conf.BusyTimeout))
 	if err != nil {
 		return nil, fmt.Errorf("sqlx.Open(): %w", err)
 	}

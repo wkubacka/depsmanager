@@ -11,7 +11,6 @@ const SystemNPM = "npm"
 
 type Storage interface {
 	StoreDependencies(ctx context.Context, deps depsmanager.ProjectDependencyRecord) error
-	UpdateProject(ctx context.Context, deps depsmanager.ProjectDependencyRecord) error
 	DeleteProject(ctx context.Context, projectName, version string) error
 	ListProjectDependencies(ctx context.Context, projectName, version string) ([]depsmanager.Dependency, error)
 	ListProjects(ctx context.Context) ([]depsmanager.Project, error)
@@ -82,11 +81,10 @@ func (s *service) FetchAndStoreProjectDependencies(ctx context.Context, projectN
 		})
 	}
 
-	fmt.Println(projectDependencies)
 	// not found dependencies for project
 	if len(projectDependencies) == 0 {
 		if err = s.storeProjectWithDependencies(ctx, projectName, version, nil); err != nil {
-			return fmt.Errorf("s.storeProjectWithDependencies(): %v", err)
+			return fmt.Errorf("s.storeProjectWithDependencies(): %w", err)
 		}
 		return nil
 	}
@@ -144,7 +142,7 @@ func (s *service) FetchAndStoreProjectDependencies(ctx context.Context, projectN
 	}
 
 	if err = s.storeProjectWithDependencies(ctx, projectName, version, dependencyScores); err != nil {
-		return fmt.Errorf("s.storeProjectWithDependencies(): %v", err)
+		return fmt.Errorf("s.storeProjectWithDependencies(): %w", err)
 	}
 
 	return nil
