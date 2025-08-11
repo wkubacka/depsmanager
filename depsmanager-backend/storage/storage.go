@@ -75,9 +75,8 @@ func (s *Storage) StoreDependencies(ctx context.Context, deps depsmanager.Projec
 	}
 	defer preparedDependency.Close()
 
-	for idaa, dependency := range deps.Dependencies {
+	for _, dependency := range deps.Dependencies {
 		_, err = preparedDependency.Exec(id, dependency.Name, dependency.Score, dependency.UpdatedAt)
-		fmt.Println(idaa, dependency.Name)
 		if err != nil {
 			return fmt.Errorf("preparedDependency.Exec(): %w, dependencyName: %v", err, dependency.Name)
 		}
@@ -249,6 +248,65 @@ func (s *Storage) ListProjects(ctx context.Context) ([]depsmanager.Project, erro
 
 	return projects, nil
 }
+func (s *Storage) GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT p.name, p.updated_at, p.version
+		FROM projects p
+		JOIN dependency d ON d.project_id = p.id
+		WHERE d.dependency_name = ?
+		ORDER BY p.name, p.version
+	`, depName)
+	if err != nil {
+		return nil, fmt.Errorf("db.QueryContext(GetProjectsByDependency): %w", err)
+	}
+	defer rows.Close()
+
+	var projects []depsmanager.Project
+	for rows.Next() {
+		var p depsmanager.Project
+		if err := rows.Scan(&p.Name, &p.UpdatedAt, &p.Version); err != nil {
+			return nil, fmt.Errorf("rows.Scan(project): %w", err)
+		}
+		projects = append(projects, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows.Err(): %w", err)
+	}
+	if len(projects) == 0 {
+		return nil, depsmanager.ErrProjectNotFound
+	}
+
+	return projects, nil
+}
+
+func (s *Storage) GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error) {
+	const eps = 1e-9
+	low, high := score-eps, score+eps
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT dependency_name
+		FROM dependency
+		WHERE score BETWEEN ? AND ?
+		ORDER BY dependency_name
+	`, low, high)
+	if err != nil {
+		return nil, fmt.Errorf("db.QueryContext(GetDependenciesByExactScore): %w", err)
+	}
+	defer rows.Close()
+
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("rows.Scan(dependency_name): %w", err)
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows.Err(): %w", err)
+	}
+	return names, nil
+}
 
 func (s *Storage) Close() error {
 	return s.db.Close()
@@ -336,6 +394,13 @@ func createTable(db *sqlx.DB) error {
 	_, err = db.Exec(`
     CREATE INDEX IF NOT EXISTS idx_dependency_project
     ON dependency(project_id);
+`)
+	if err != nil {
+		return fmt.Errorf("db.Exec(index project id): %w", err)
+	}
+
+	_, err = db.Exec(`
+    CREATE INDEX IF NOT EXISTS idx_dependency_score ON dependency(score);
 `)
 	if err != nil {
 		return fmt.Errorf("db.Exec(index project id): %w", err)

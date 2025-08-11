@@ -18,6 +18,8 @@ type Service interface {
 	DeleteProject(ctx context.Context, projectName, version string) error
 	ListProjects(ctx context.Context) ([]depsmanager.Project, error)
 	ListProjectVersions(ctx context.Context, projectName string) ([]string, error)
+	GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error)
+	GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error)
 }
 type API struct {
 	service Service
@@ -45,6 +47,8 @@ func (a *API) GetHandler() chi.Router {
 			r.Get("/versions", customErr.HandleError(a.ProjectVersions))
 		})
 		r.Post("/v1/dependencies", customErr.HandleError(a.ListDependencies))
+		r.Post("/v1/dependencies/byprojectname", customErr.HandleError(a.ProjectByDependency))
+		r.Post("/v1/dependencies/byscore", customErr.HandleError(a.DependenciesByScore))
 	})
 
 	return r
@@ -204,6 +208,73 @@ func (a *API) ProjectVersions(w http.ResponseWriter, r *http.Request) error {
 			return customErr.NewNotFound(err)
 		}
 		return customErr.NewInternal(fmt.Errorf("service.ListProjectVersions: %w", err))
+	}
+
+	if err := json.NewEncoder(w).Encode(versions); err != nil {
+		return customErr.NewInternal(fmt.Errorf("json.NewEncoder(w).Encode(resp)"))
+	}
+
+	return nil
+}
+
+// ProjectByDependency
+// @summary ProjectByDependency
+// @description List projects by dependency name.
+// @tags dependencies
+// @accept json
+// @param request r.body body depsmanager.GetProjectNameByDepNameReq true "request body"
+// @failure 500 "internal error"
+// @failure 404 "not found project"
+// @failure 400 "cannot decode body / empty dependency name"
+// @Success 200 {object} []depsmanager.Project "related projects"
+// @Router /v1/dependencies/byprojectname [post]
+func (a *API) ProjectByDependency(w http.ResponseWriter, r *http.Request) error {
+	var req depsmanager.GetProjectNameByDepNameReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return customErr.NewBadRequest(fmt.Errorf("json.NewDecoder(r.Body).Decode(&req): %w", err))
+	}
+	if req.DependencyName == "" {
+		return customErr.NewBadRequest(fmt.Errorf("req.DependencyName is required"))
+	}
+
+	versions, err := a.service.GetProjectsByDependency(r.Context(), req.DependencyName)
+	if err != nil {
+		if errors.Is(err, depsmanager.ErrProjectNotFound) {
+			return customErr.NewNotFound(err)
+		}
+		return customErr.NewInternal(fmt.Errorf("service.GetProjectsByDependency: %w", err))
+	}
+
+	if err := json.NewEncoder(w).Encode(versions); err != nil {
+		return customErr.NewInternal(fmt.Errorf("json.NewEncoder(w).Encode(resp)"))
+	}
+
+	return nil
+}
+
+// DependenciesByScore
+// @summary DependenciesByScore
+// @description Get dependencies by score.
+// @tags dependencies
+// @accept json
+// @param request r.body body depsmanager.GetDependenciesByScore true "request body"
+// @failure 500 "internal error"
+// @failure 404 "not found project"
+// @failure 400 "cannot decode body"
+// @Success 200 {object} []string "versions"
+// @Router /v1/dependencies/byscore [post]
+func (a *API) DependenciesByScore(w http.ResponseWriter, r *http.Request) error {
+	var req depsmanager.GetDependenciesByScore
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return customErr.NewBadRequest(fmt.Errorf("json.NewDecoder(r.Body).Decode(&req): %w", err))
+	}
+
+	versions, err := a.service.GetDependenciesByExactScore(r.Context(), req.Score)
+	if err != nil {
+		if errors.Is(err, depsmanager.ErrProjectNotFound) {
+			return customErr.NewNotFound(err)
+		}
+		return customErr.NewInternal(fmt.Errorf("service.GetDependenciesByExactScore: %w", err))
 	}
 
 	if err := json.NewEncoder(w).Encode(versions); err != nil {

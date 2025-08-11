@@ -207,3 +207,75 @@ func TestDeleteProject_NotFound(t *testing.T) {
 		t.Fatalf("expected ErrProjectNotFound, got: %v", err)
 	}
 }
+
+func TestGetProjectNamesByDependency_ExactMatch(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      depsmanager.Project{Name: "react", Version: "18.3.1", UpdatedAt: time.Now().Unix()},
+		Dependencies: []depsmanager.Dependency{{Name: "alpha", Score: 80.5, UpdatedAt: time.Now().Unix()}, {Name: "shared", Score: 81.5, UpdatedAt: time.Now().Unix()}},
+	}); err != nil {
+		t.Fatalf("StoreDependencies(react): %v", err)
+	}
+
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      depsmanager.Project{Name: "vue", Version: "3.5.0", UpdatedAt: time.Now().Unix()},
+		Dependencies: []depsmanager.Dependency{{Name: "shared", Score: 81.5, UpdatedAt: time.Now().Unix()}, {Name: "other", Score: 82.5, UpdatedAt: time.Now().Unix()}},
+	}); err != nil {
+		t.Fatalf("StoreDependencies(vue): %v", err)
+	}
+
+	projects, err := st.GetProjectsByDependency(ctx, "shared")
+	if err != nil {
+		t.Fatalf("GetProjectsByDependency(shared): %v", err)
+	}
+	if len(projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d: %+v", len(projects), projects)
+	}
+
+	want := map[string]string{"react": "18.3.1", "vue": "3.5.0"}
+	got := map[string]string{}
+	for _, p := range projects {
+		got[p.Name] = p.Version
+	}
+	for name, ver := range want {
+		if got[name] != ver {
+			t.Fatalf("missing or wrong version for %s: got=%q want=%q (all=%+v)", name, got[name], ver, projects)
+		}
+	}
+}
+
+func TestGetDependencyNamesByExactScore(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      depsmanager.Project{Name: "proj1", Version: "1.0.0", UpdatedAt: time.Now().Unix()},
+		Dependencies: []depsmanager.Dependency{{Name: "a", Score: 80.5, UpdatedAt: time.Now().Unix()}, {Name: "b", Score: 81.5, UpdatedAt: time.Now().Unix()}, {Name: "c", Score: 82.5, UpdatedAt: time.Now().Unix()}},
+	}); err != nil {
+		t.Fatalf("StoreDependencies(proj1): %v", err)
+	}
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      depsmanager.Project{Name: "proj2", Version: "2.0.0", UpdatedAt: time.Now().Unix()},
+		Dependencies: []depsmanager.Dependency{{Name: "x", Score: 80.5, UpdatedAt: time.Now().Unix()}, {Name: "b", Score: 81.5, UpdatedAt: time.Now().Unix()}, {Name: "y", Score: 83.5, UpdatedAt: time.Now().Unix()}},
+	}); err != nil {
+		t.Fatalf("StoreDependencies(proj2): %v", err)
+	}
+
+	names, err := st.GetDependenciesByExactScore(ctx, 81.5)
+	if err != nil {
+		t.Fatalf("GetDependenciesByExactScore(81.5): %v", err)
+	}
+	if len(names) != 1 || names[0] != "b" {
+		t.Fatalf("unexpected names for score=81.5: %+v (want [b])", names)
+	}
+
+	names, err = st.GetDependenciesByExactScore(ctx, 99.99)
+	if err != nil {
+		t.Fatalf("GetDependenciesByExactScore(99.99) err: %v", err)
+	}
+	if len(names) != 0 {
+		t.Fatalf("expected empty result for score=99.99, got: %+v", names)
+	}
+}

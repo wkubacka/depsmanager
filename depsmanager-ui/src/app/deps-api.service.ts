@@ -38,9 +38,21 @@ export class DepsApiService {
     return this.http.request<void>('DELETE', `${this.base}/v1/projects`, { body });
   }
 
-  /** GET /v1/projects/versions?project_name=... — ProjectVersions) */
+  /** GET /v1/projects/versions?project_name=... — ProjectVersions */
   getProjectVersions(project_name: string): Observable<ProjectVersionsResponse> {
     const params = new HttpParams().set('project_name', project_name);
     return this.http.get<ProjectVersionsResponse>(`${this.base}/v1/projects/versions`, { params });
+  }
+
+  // --- NEW: Search endpoints (POST) ---
+
+  /** POST /v1/dependencies/byprojectname  { dependency_name } -> Project[] */
+  searchProjectsByDependencyName(dependency_name: string): Observable<Project[]> {
+    return this.http.post<Project[]>(`${this.base}/v1/dependencies/byprojectname`, { dependency_name });
+  }
+
+  /** POST /v1/dependencies/byscore { score } -> string[] */
+  searchDependenciesByScore(score: number): Observable<string[]> {
+    return this.http.post<string[]>(`${this.base}/v1/dependencies/byscore`, { score });
   }
 }

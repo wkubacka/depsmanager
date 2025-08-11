@@ -23,7 +23,16 @@ type ProjectDependencyRecord struct {
 	Project      Project
 	Dependencies []Dependency
 }
+
+type GetProjectNameByDepNameReq struct {
+	DependencyName string `json:"dependency_name"`
+}
+
+type GetDependenciesByScore struct {
+	Score float64 `json:"score"`
+}
 type Dependency struct {
+	ProjectID int64   `json:"-"`
 	Score     float64 `json:"score"`
 	Name      string  `json:"name"`
 	UpdatedAt int64   `json:"updated_at"`

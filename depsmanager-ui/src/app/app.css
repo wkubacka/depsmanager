@@ -112,3 +112,26 @@ input, select {
   color: #222;
   border: 1px solid #ccc;
 }
+
+.input-lg {
+  width: clamp(320px, 50vw, 640px); /* grows with viewport, but caps */
+  max-width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 16px;
+  line-height: 1.4;
+  border-radius: 10px;
+}
+
+/* Nice alignment of input + button in the small search forms */
+.subcard form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap; /* on narrow screens button drops to new line */
+}
+
+.subcard form button {
+  min-height: 44px;
+  padding: 10px 14px;
+}

@@ -273,3 +273,125 @@ func TestProjectVersions_InternalError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	svc.AssertExpectations(t)
 }
+func TestProjectByDependency_Success(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: "shared"}
+
+	out := []depsmanager.Project{
+		{Name: "react", Version: "18.3.1", UpdatedAt: time.Now().Unix()},
+		{Name: "vue", Version: "3.5.0", UpdatedAt: time.Now().Unix()},
+	}
+	svc.
+		On("GetProjectsByDependency", mock.Anything, "shared").
+		Return(out, nil).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byprojectname", body)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got []depsmanager.Project
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	require.Len(t, got, 2)
+	assert.Equal(t, "react", got[0].Name)
+	assert.Equal(t, "vue", got[1].Name)
+
+	svc.AssertExpectations(t)
+}
+
+func TestProjectByDependency_BadJSON(t *testing.T) {
+	h, _ := setup(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dependencies/byprojectname", bytes.NewBufferString("{invalid"))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProjectByDependency_Validation(t *testing.T) {
+	h, _ := setup(t)
+	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: ""}
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byprojectname", body)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProjectByDependency_NotFound(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: "missing"}
+
+	svc.
+		On("GetProjectsByDependency", mock.Anything, "missing").
+		Return([]depsmanager.Project(nil), depsmanager.ErrProjectNotFound).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byprojectname", body)
+	require.Equal(t, http.StatusNotFound, rr.Code)
+
+	svc.AssertExpectations(t)
+}
+
+func TestProjectByDependency_InternalError(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: "shared"}
+
+	svc.
+		On("GetProjectsByDependency", mock.Anything, "shared").
+		Return([]depsmanager.Project(nil), errors.New("boom")).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byprojectname", body)
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	svc.AssertExpectations(t)
+}
+
+func TestDependenciesByScore_Success(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.GetDependenciesByScore{Score: 81.5}
+
+	svc.
+		On("GetDependenciesByExactScore", mock.Anything, 81.5).
+		Return([]string{"left-pad", "shared"}, nil).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byscore", body)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got []string
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.ElementsMatch(t, []string{"left-pad", "shared"}, got)
+
+	svc.AssertExpectations(t)
+}
+
+func TestDependenciesByScore_BadJSON(t *testing.T) {
+	h, _ := setup(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dependencies/byscore", bytes.NewBufferString("{invalid"))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestDependenciesByScore_NotFound(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.GetDependenciesByScore{Score: 99.99}
+
+	svc.
+		On("GetDependenciesByExactScore", mock.Anything, 99.99).
+		Return([]string(nil), depsmanager.ErrProjectNotFound).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byscore", body)
+	require.Equal(t, http.StatusNotFound, rr.Code)
+
+	svc.AssertExpectations(t)
+}
+
+func TestDependenciesByScore_InternalError(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.GetDependenciesByScore{Score: 77.7}
+
+	svc.
+		On("GetDependenciesByExactScore", mock.Anything, 77.7).
+		Return([]string(nil), errors.New("deps failure")).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byscore", body)
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	svc.AssertExpectations(t)
+}

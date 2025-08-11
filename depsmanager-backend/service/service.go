@@ -14,6 +14,8 @@ type Storage interface {
 	DeleteProject(ctx context.Context, projectName, version string) error
 	ListProjectDependencies(ctx context.Context, projectName, version string) ([]depsmanager.Dependency, error)
 	ListProjects(ctx context.Context) ([]depsmanager.Project, error)
+	GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error)
+	GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error)
 }
 
 type DepsClient interface {
@@ -183,6 +185,14 @@ func (s *service) ListProjectVersions(ctx context.Context, projectName string) (
 		versions = append(versions, v.VersionKey.Version)
 	}
 	return versions, nil
+}
+
+func (s *service) GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error) {
+	return s.storage.GetDependenciesByExactScore(ctx, score)
+}
+
+func (s *service) GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error) {
+	return s.storage.GetProjectsByDependency(ctx, depName)
 }
 
 func (s *service) storeProjectWithDependencies(ctx context.Context, projectName, version string, dependencyScores []depsmanager.Dependency) error {

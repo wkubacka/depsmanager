@@ -60,6 +60,20 @@ export class AppComponent implements OnInit {
     scales: { x: {}, y: { beginAtZero: true, suggestedMax: 10 } },
   };
 
+  // 1) Projects by dependency name
+  depSearchCtrl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
+  depSearchLoading = false;
+  depSearchError = '';
+  projectsByDep: Project[] = [];
+
+  // 2) Dependency names by exact score
+  scoreSearchCtrl = new FormControl<number | null>(null, {
+    validators: [Validators.required, Validators.min(0), Validators.max(1)],
+  });
+  scoreSearchLoading = false;
+  scoreSearchError = '';
+  depsByScore: string[] = [];
+
   constructor(private api: DepsApiService) {}
 
   ngOnInit(): void {
@@ -199,7 +213,7 @@ export class AppComponent implements OnInit {
     this.selectedProjectName = projectName;
     this.selectedVersion = version;
     this.depsError = '';
-    this.isLoadingDeps = true;
+       this.isLoadingDeps = true;
 
     this.api.listDependencies(projectName, version).subscribe({
       next: (resp: ListDependenciesResponse) => {
@@ -227,6 +241,7 @@ export class AppComponent implements OnInit {
         this.projectsError = this.humanizeHttpError(err);
       },
     });
+    
   }
 
   // Filtering helpers
@@ -244,6 +259,64 @@ export class AppComponent implements OnInit {
     };
   }
 
+  searchProjectsByDependency(): void {
+    this.depSearchError = '';
+    this.projectsByDep = [];
+    const dep = (this.depSearchCtrl.value || '').trim();
+    if (!dep) {
+      this.depSearchError = 'Please enter a dependency name.';
+      return;
+    }
+    this.depSearchLoading = true;
+    this.api.searchProjectsByDependencyName(dep).subscribe({
+      next: (rows) => {
+        this.depSearchLoading = false;
+        this.projectsByDep = rows || [];
+      },
+      error: (err) => {
+        this.depSearchLoading = false;
+        const s = err?.status;
+        if (s === 404) this.depSearchError = 'No projects found for this dependency.';
+        else if (s === 400) this.depSearchError = 'Bad request.';
+        else this.depSearchError = 'Server error. Please try again.';
+      },
+    });
+  }
+
+  private parseScore(val: unknown): number | null {
+    if (val == null) return null;
+    const s = String(val).replace(',', '.').trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  searchDependenciesByScore(): void {
+    this.scoreSearchError = '';
+    this.depsByScore = [];
+
+    const scoreParsed = this.parseScore(this.scoreSearchCtrl.value);
+    if (scoreParsed == null || scoreParsed <- 10 || scoreParsed > 10) {
+      this.scoreSearchError = 'Score must be a number in the range -10..10.';
+      return;
+    }
+
+    this.scoreSearchLoading = true;
+    this.api.searchDependenciesByScore(scoreParsed).subscribe({
+      next: (names) => {
+        this.scoreSearchLoading = false;
+        this.depsByScore = names ?? [];
+      },
+      error: (err) => {
+        this.scoreSearchLoading = false;
+        const s = err?.status;
+        if (s === 404) this.scoreSearchError = 'No dependencies found with that score.';
+        else if (s === 400) this.scoreSearchError = 'Bad request.';
+        else this.scoreSearchError = 'Server error. Please try again.';
+      },
+    });
+  }
+
   // Utils
   formatDate(ts: number): string {
     if (!ts || ts === 0) return 'UNKNOWN';
@@ -252,7 +325,7 @@ export class AppComponent implements OnInit {
 
   humanizeHttpError(err: any): string {
     const status = err?.status;
-    if (status === 404) return 'Not found (404): project not exist or not found.';
+    if (status === 404) return 'Not found (404): project does not exist or was not found.';
     if (status === 500) return 'Server error (500): please try again later.';
     return this.humanizeError(err);
   }

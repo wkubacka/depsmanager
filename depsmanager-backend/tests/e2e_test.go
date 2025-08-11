@@ -116,6 +116,44 @@ func Test_e2e(t *testing.T) {
 		require.Equal(t, 1, len(projects))
 		require.Equal(t, "testproject", projects[0].Name)
 	})
+
+	t.Run("Fetch by score", func(t *testing.T) {
+		r := depsmanager.GetDependenciesByScore{Score: 9.0}
+		rBytes, err := json.Marshal(r)
+
+		request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/dependencies/byscore", conf.DepsAddress), bytes.NewReader(rBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		var resp []string
+		err = json.NewDecoder(do.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp))
+		require.Equal(t, "pkg-c", resp[0])
+	})
+
+	t.Run("Fetch by score", func(t *testing.T) {
+		r := depsmanager.GetProjectNameByDepNameReq{DependencyName: "pkg-a"}
+		rBytes, err := json.Marshal(r)
+
+		request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/dependencies/byprojectname", conf.DepsAddress), bytes.NewReader(rBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		var resp []depsmanager.Project
+		err = json.NewDecoder(do.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp))
+		require.Equal(t, "testproject", resp[0].Name)
+		require.Equal(t, "1.0.0", resp[0].Version)
+	})
+
 }
 
 func attachFakeClient(router chi.Router) chi.Router {

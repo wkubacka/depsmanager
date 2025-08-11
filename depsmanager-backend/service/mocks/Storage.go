@@ -32,6 +32,66 @@ func (_m *Storage) DeleteProject(ctx context.Context, projectName string, versio
 	return r0
 }
 
+// GetDependenciesByExactScore provides a mock function with given fields: ctx, score
+func (_m *Storage) GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error) {
+	ret := _m.Called(ctx, score)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDependenciesByExactScore")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, float64) ([]string, error)); ok {
+		return rf(ctx, score)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, float64) []string); ok {
+		r0 = rf(ctx, score)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, float64) error); ok {
+		r1 = rf(ctx, score)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetProjectsByDependency provides a mock function with given fields: ctx, depName
+func (_m *Storage) GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error) {
+	ret := _m.Called(ctx, depName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectsByDependency")
+	}
+
+	var r0 []depsmanager.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]depsmanager.Project, error)); ok {
+		return rf(ctx, depName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []depsmanager.Project); ok {
+		r0 = rf(ctx, depName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]depsmanager.Project)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, depName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListProjectDependencies provides a mock function with given fields: ctx, projectName, version
 func (_m *Storage) ListProjectDependencies(ctx context.Context, projectName string, version string) ([]depsmanager.Dependency, error) {
 	ret := _m.Called(ctx, projectName, version)

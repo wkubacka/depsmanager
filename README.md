@@ -19,7 +19,13 @@ To stop service:
 ./start.sh
 ```
 ---
+## API docs
 
+
+Please check 
+``depsmanager-backend/docs/swagger.yaml``
+
+---
 ## Database structure
 
 ```mermaid
@@ -47,7 +53,8 @@ erDiagram
 - `UNIQUE(project_id, dependency_name)` on `dependency`  
 - `idx_dependency_project_name` → `(project_id, dependency_name)`  
 - `idx_dependency_project` → `(project_id)`  
-
+- `idx_dependency_project` → `(project_id)`
+- `idx_dependency_score` → `(score)`
 ---
 
 ## Sequence diagram (detailed data flow)
