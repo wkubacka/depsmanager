@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+   main:
+    image: golang:1.24
+    volumes:
+      - .:/root/src/github.com/wkubacka/depsmanager
+    working_dir: /root/src/github.com/wkubacka/depsmanager
+    command: make test_e2e
+    environment:
+      - DEPS_ADDRESS=http://localhost:8085
+      - HTTP_PORT=8085

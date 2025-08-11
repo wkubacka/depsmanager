@@ -1,0 +1,163 @@
+<!-- Fetch Project -->
+<section class="card">
+  <h2>Fetch dependencies for a project</h2>
+
+  @if (fetchError) {
+    <div class="error" style="margin-bottom:8px;">{{ fetchError }}</div>
+  }
+
+  <div class="row">
+    <input [formControl]="projectInput" placeholder="Project name (e.g., org/repo)" />
+    <select [formControl]="versionCtrl" title="Select version" [disabled]="!versions.length">
+      <option value="" disabled selected>-- select version --</option>
+      @for (v of versions; track v) {
+        <option [value]="v">{{ v }}</option>
+      }
+    </select>
+
+    <button (click)="onFetchProject()"
+            [disabled]="isFetching || !projectInput.value || !versionCtrl.value">
+      Fetch
+    </button>
+  </div>
+
+  @if (versionsError) {
+    <div class="error">{{ versionsError }}</div>
+  }
+
+  @if (isLoadingVersions) {
+    <div class="hint">Loading versions…</div>
+  } @else if (projectInput.value && versions.length === 0) {
+    <div class="hint">No versions found for this project.</div>
+  }
+
+  @if (isFetching) {
+    <div class="hint">Fetching…</div>
+  }
+</section>
+
+<!-- Projects -->
+<section class="card">
+  <div class="card-header">
+    <h2 class="card-title">Projects</h2>
+    <div class="card-actions">
+      <input
+        class="search"
+        type="text"
+        placeholder="Search projects…"
+        [value]="search()"
+        (input)="search.set(($any($event.target)).value)"
+      />
+      <button (click)="refreshProjects()" [disabled]="isLoadingProjects">
+        {{ isLoadingProjects ? 'Refreshing…' : 'Refresh' }}
+      </button>
+    </div>
+  </div>
+
+  @if (projectsError) {
+    <div class="error">Error: {{ projectsError }}</div>
+  }
+
+  <div class="projects-wrap">
+    <div class="projects-card">
+      @if (projects()?.length) {
+        <table class="projects-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Version</th>
+              <th>Updated</th>
+              <th class="actions-col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of filteredProjects(); track (p.name + ':' + p.version)) {
+              <tr>
+                <td><strong>{{ p.name }}</strong></td>
+                <td><code>{{ p.version }}</code></td>
+                <td>{{ formatDate(p.updated_at) }}</td>
+                <td class="actions">
+                  <button (click)="onListDependenciesFor(p.name, p.version)">List deps</button>
+                  <button (click)="updateProject(p.name, p.version)"
+                          [disabled]="updatingRow[p.name + '@' + p.version]">
+                    {{ updatingRow[p.name + '@' + p.version] ? 'Updating…' : 'Update' }}
+                  </button>
+                  <button class="danger" (click)="onRemoveProject(p.name, p.version)">Remove</button>
+                </td>
+              </tr>
+
+              @if (updatingErr[p.name + '@' + p.version]) {
+                <tr class="row-error">
+                  <td colspan="4" class="error">
+                    Update error: {{ updatingErr[p.name + '@' + p.version] }}
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="empty">No projects yet.</div>
+      }
+
+      @if (isLoadingProjects) {
+        <div class="hint">Loading projects…</div>
+      }
+    </div>
+  </div>
+</section>
+
+<!-- Dependencies -->
+@if (selectedProjectName && selectedVersion) {
+  <section class="card">
+    <h2>
+      Dependencies for <code>{{ selectedProjectName }}</code> version: <code>{{ selectedVersion }}</code>
+    </h2>
+
+    @if (depsError) {
+      <div class="error">Error: {{ depsError }}</div>
+    } @else {
+      <div class="row">
+        <input [formControl]="filterCtrl" placeholder="Search dependency by name" />
+      </div>
+
+      <div class="deps">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>OpenSSF score</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of filteredDependencies(); track d.name) {
+              <tr>
+                <td>{{ d.name }}</td>
+                <td>{{ d.score }}</td>
+                <td>{{ formatDate(d.updated_at) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (!dependencies?.length && !isLoadingDeps) {
+          <div class="hint">No dependencies.</div>
+        }
+        @if (isLoadingDeps) {
+          <div class="hint">Loading dependencies…</div>
+        }
+      </div>
+
+      @if (dependencies?.length) {
+        <div class="chart-wrapper">
+          <canvas baseChart
+                  [data]="barChartData"
+                  [options]="barChartOptions"
+                  [type]="'bar'">
+          </canvas>
+        </div>
+      }
+    }
+  </section>
+}

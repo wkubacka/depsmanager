@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  api:
+    build:
+      context: ./depsmanager-backend
+      dockerfile: Dockerfile    
+    container_name: api
+    environment:
+      HTTP_PORT: "8080"
+      DB_PATH: "/data/storage.db"
+    expose:
+      - "8080"
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+
+  web:
+    build:
+      context: ./depsmanager-ui
+    container_name: web
+    ports:
+      - "8088:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
