@@ -7,7 +7,7 @@
   }
 
   <div class="row">
-    <input [formControl]="projectInput" placeholder="Project name (e.g., org/repo)" />
+    <input [formControl]="projectInput" placeholder="NPM Project name (e.g., angular / react)" />
     <select [formControl]="versionCtrl" title="Select version" [disabled]="!versions.length">
       <option value="" disabled selected>-- select version --</option>
       @for (v of versions; track v) {
