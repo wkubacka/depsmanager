@@ -16,6 +16,10 @@ type Storage interface {
 	ListProjects(ctx context.Context) ([]depsmanager.Project, error)
 	GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error)
 	GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error)
+
+	AddDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error
+	UpdateDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error
+	DeleteDependency(ctx context.Context, projectName, version, depName string) error
 }
 
 type DepsClient interface {
@@ -193,6 +197,20 @@ func (s *service) GetDependenciesByExactScore(ctx context.Context, score float64
 
 func (s *service) GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error) {
 	return s.storage.GetProjectsByDependency(ctx, depName)
+}
+
+func (s *service) AddDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error {
+	dep.UpdatedAt = time.Now().Unix()
+	return s.storage.AddDependency(ctx, projectName, version, dep)
+}
+
+func (s *service) UpdateDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error {
+	dep.UpdatedAt = time.Now().Unix()
+	return s.storage.UpdateDependency(ctx, projectName, version, dep)
+}
+
+func (s *service) DeleteDependency(ctx context.Context, projectName, version, depName string) error {
+	return s.storage.DeleteDependency(ctx, projectName, version, depName)
 }
 
 func (s *service) storeProjectWithDependencies(ctx context.Context, projectName, version string, dependencyScores []depsmanager.Dependency) error {

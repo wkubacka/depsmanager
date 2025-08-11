@@ -4,7 +4,6 @@
 All retrieved data is stored in an **SQLite** database.
 
 The service also provides a **UI** for easily viewing and managing projects.  
-There is currently **no possibility to remove individual dependencies** — only whole projects can be deleted.
 
 ---
 

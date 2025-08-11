@@ -47,3 +47,12 @@ func NewNotFound(err error) *NotFoundRequest {
 	return &NotFoundRequest{BaseError: BaseError{Err: err}}
 }
 func (e NotFoundRequest) NotFoundRequest() {}
+
+type ConflictRequest struct {
+	BaseError
+}
+
+func NewConflict(err error) *ConflictRequest {
+	return &ConflictRequest{BaseError: BaseError{Err: err}}
+}
+func (e ConflictRequest) ConflictRequest() {}

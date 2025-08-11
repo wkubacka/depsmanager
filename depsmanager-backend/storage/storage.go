@@ -308,6 +308,109 @@ func (s *Storage) GetDependenciesByExactScore(ctx context.Context, score float64
 	return names, nil
 }
 
+func (s *Storage) AddDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("db.BeginTx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	projectID, err := s.getProjectIDTX(ctx, tx, projectName, version)
+	if err != nil {
+		return fmt.Errorf("getProjectIDTX(%s,%s): %w", projectName, version, err)
+	}
+
+	// Insert a single dependency row
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO dependency(project_id, dependency_name, score, updated_at) 
+         VALUES (?, ?, ?, ?)`,
+		projectID, dep.Name, dep.Score, dep.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("INSERT dependency(%s): %w", dep.Name, err)
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("RowsAffected: %w", err)
+	}
+	if aff == 0 {
+		return depsmanager.ErrDependencyAlreadyExists
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("tx.Commit: %w", err)
+	}
+	return nil
+}
+
+func (s *Storage) DeleteDependency(ctx context.Context, projectName, version, depName string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("db.BeginTx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	projectID, err := s.getProjectIDTX(ctx, tx, projectName, version)
+	if err != nil {
+		return fmt.Errorf("getProjectIDTX(%s,%s): %w", projectName, version, err)
+	}
+
+	res, err := tx.ExecContext(ctx,
+		`DELETE FROM dependency WHERE project_id = ? AND dependency_name = ?`,
+		projectID, depName,
+	)
+	if err != nil {
+		return fmt.Errorf("DELETE dependency(%s): %w", depName, err)
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("RowsAffected: %w", err)
+	}
+	if aff == 0 {
+		return depsmanager.ErrDependencyNotFound
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("tx.Commit: %w", err)
+	}
+	return nil
+}
+
+func (s *Storage) UpdateDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("db.BeginTx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	projectID, err := s.getProjectIDTX(ctx, tx, projectName, version)
+	if err != nil {
+		return fmt.Errorf("getProjectIDTX(%s,%s): %w", projectName, version, err)
+	}
+
+	res, err := tx.ExecContext(ctx,
+		`UPDATE dependency 
+           SET score = ?, updated_at = ?
+         WHERE project_id = ? AND dependency_name = ?`,
+		dep.Score, dep.UpdatedAt, projectID, dep.Name,
+	)
+	if err != nil {
+		return fmt.Errorf("UPDATE dependency(%s): %w", dep.Name, err)
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("RowsAffected: %w", err)
+	}
+	if aff == 0 {
+		return depsmanager.ErrDependencyNotFound
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("tx.Commit: %w", err)
+	}
+	return nil
+}
+
 func (s *Storage) Close() error {
 	return s.db.Close()
 }

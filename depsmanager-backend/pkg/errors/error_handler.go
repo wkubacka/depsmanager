@@ -18,6 +18,10 @@ type NotFoundErr interface {
 	NotFoundRequest()
 }
 
+type ConflictErr interface {
+	ConflictRequest()
+}
+
 func logCode(code int, error error) {
 	log.Printf("api log: %s, statusCode: %v", error.Error(), code)
 }
@@ -53,6 +57,13 @@ func HandleError(h func(http.ResponseWriter, *http.Request) error) func(http.Res
 		if errors.As(wrappedErr, &notFoundRequest) {
 			logCode(http.StatusNotFound, err)
 			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var conflictRequest ConflictErr
+		if errors.As(wrappedErr, &conflictRequest) {
+			logCode(http.StatusConflict, err)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 

@@ -213,7 +213,7 @@ func TestListProjects_Success(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-func TestProjectVersions_Success(t *testing.T) {
+func TestAPI_ProjectVersions_Success(t *testing.T) {
 	h, svc := setup(t)
 	svc.On("ListProjectVersions", mock.Anything, "react").Return([]string{"18.3.1", "18.2.0"}, nil).Once()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/versions?project_name=react", nil)
@@ -227,7 +227,7 @@ func TestProjectVersions_Success(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-func TestProjectVersions_Validation(t *testing.T) {
+func TestAPI_ProjectVersions_Validation(t *testing.T) {
 	h, _ := setup(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/versions", nil)
 	req.Header.Set("Content-Type", "application/json")
@@ -248,7 +248,7 @@ func TestListProjects_InternalError(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-func TestProjectVersions_NotFound(t *testing.T) {
+func TestAPI_ProjectVersions_NotFound(t *testing.T) {
 	h, svc := setup(t)
 	svc.On("ListProjectVersions", mock.Anything, "react").Return(nil, depsmanager.ErrProjectNotFound).Once()
 
@@ -261,7 +261,7 @@ func TestProjectVersions_NotFound(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-func TestProjectVersions_InternalError(t *testing.T) {
+func TestAPI_ProjectVersions_InternalError(t *testing.T) {
 	h, svc := setup(t)
 	svc.On("ListProjectVersions", mock.Anything, "react").Return(nil, errors.New("deps failure")).Once()
 
@@ -273,7 +273,7 @@ func TestProjectVersions_InternalError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	svc.AssertExpectations(t)
 }
-func TestProjectByDependency_Success(t *testing.T) {
+func TestAPI_ProjectByDependency_Success(t *testing.T) {
 	h, svc := setup(t)
 	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: "shared"}
 
@@ -297,7 +297,7 @@ func TestProjectByDependency_Success(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-func TestProjectByDependency_BadJSON(t *testing.T) {
+func TestAPI_ProjectByDependency_BadJSON(t *testing.T) {
 	h, _ := setup(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/dependencies/byprojectname", bytes.NewBufferString("{invalid"))
 	req.Header.Set("Content-Type", "application/json")
@@ -306,14 +306,14 @@ func TestProjectByDependency_BadJSON(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestProjectByDependency_Validation(t *testing.T) {
+func TestAPI_ProjectByDependency_Validation(t *testing.T) {
 	h, _ := setup(t)
 	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: ""}
 	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byprojectname", body)
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestProjectByDependency_NotFound(t *testing.T) {
+func TestAPI_ProjectByDependency_NotFound(t *testing.T) {
 	h, svc := setup(t)
 	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: "missing"}
 
@@ -327,7 +327,7 @@ func TestProjectByDependency_NotFound(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
-func TestProjectByDependency_InternalError(t *testing.T) {
+func TestAPI_ProjectByDependency_InternalError(t *testing.T) {
 	h, svc := setup(t)
 	body := depsmanager.GetProjectNameByDepNameReq{DependencyName: "shared"}
 
@@ -393,5 +393,233 @@ func TestDependenciesByScore_InternalError(t *testing.T) {
 	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/byscore", body)
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 
+	svc.AssertExpectations(t)
+}
+
+func TestAddDependency_Success(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep-a",
+		Score:          0.5,
+	}
+	svc.On("AddDependency",
+		mock.Anything,
+		"proj",
+		"1.0.0",
+		mock.MatchedBy(func(d depsmanager.Dependency) bool {
+			return d.Name == "dep-a" && d.Score == 0.5
+		}),
+	).Return(nil).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/new", body)
+	require.Equal(t, http.StatusCreated, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestAddDependency_BadJSON(t *testing.T) {
+	h, _ := setup(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dependencies/new", bytes.NewBufferString("{invalid"))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestAddDependency_Validation(t *testing.T) {
+	h, _ := setup(t)
+	body := depsmanager.DependencyRequest{} // missing required fields
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/new", body)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestAddDependency_NotFound(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "missing",
+		Version:        "0.0.1",
+		DependencyName: "dep",
+		Score:          0.1,
+	}
+	svc.On("AddDependency",
+		mock.Anything, "missing", "0.0.1", mock.AnythingOfType("depsmanager.Dependency"),
+	).Return(depsmanager.ErrProjectNotFound).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/new", body)
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestAddDependency_Conflict(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep-a",
+		Score:          0.5,
+	}
+	// Handler ma mapować ten błąd na 409
+	svc.On("AddDependency",
+		mock.Anything, "proj", "1.0.0",
+		mock.MatchedBy(func(d depsmanager.Dependency) bool { return d.Name == "dep-a" }),
+	).Return(depsmanager.ErrDependencyAlreadyExists).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/new", body)
+	require.Equal(t, http.StatusConflict, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestAddDependency_InternalError(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep",
+		Score:          0.2,
+	}
+	svc.On("AddDependency",
+		mock.Anything, "proj", "1.0.0", mock.AnythingOfType("depsmanager.Dependency"),
+	).Return(errors.New("db failure")).Once()
+
+	rr := doJSON(t, h, http.MethodPost, "/api/v1/dependencies/new", body)
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+// --- ModifyDependency ---
+
+func TestModifyDependency_Success(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep-a",
+		Score:          0.9,
+	}
+	svc.On("UpdateDependency",
+		mock.Anything,
+		"proj",
+		"1.0.0",
+		mock.MatchedBy(func(d depsmanager.Dependency) bool {
+			return d.Name == "dep-a" && d.Score == 0.9
+		}),
+	).Return(nil).Once()
+
+	rr := doJSON(t, h, http.MethodPatch, "/api/v1/dependencies/modify", body)
+	require.Equal(t, http.StatusOK, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestModifyDependency_BadJSON(t *testing.T) {
+	h, _ := setup(t)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/dependencies/modify", bytes.NewBufferString("{invalid"))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestModifyDependency_Validation(t *testing.T) {
+	h, _ := setup(t)
+	body := depsmanager.DependencyRequest{}
+	rr := doJSON(t, h, http.MethodPatch, "/api/v1/dependencies/modify", body)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestModifyDependency_NotFound(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "missing",
+		Version:        "0.0.1",
+		DependencyName: "dep",
+		Score:          0.4,
+	}
+	svc.On("UpdateDependency",
+		mock.Anything, "missing", "0.0.1", mock.AnythingOfType("depsmanager.Dependency"),
+	).Return(depsmanager.ErrProjectNotFound).Once()
+
+	rr := doJSON(t, h, http.MethodPatch, "/api/v1/dependencies/modify", body)
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestModifyDependency_InternalError(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.DependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep",
+		Score:          0.4,
+	}
+	svc.On("UpdateDependency",
+		mock.Anything, "proj", "1.0.0", mock.AnythingOfType("depsmanager.Dependency"),
+	).Return(errors.New("boom")).Once()
+
+	rr := doJSON(t, h, http.MethodPatch, "/api/v1/dependencies/modify", body)
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+// --- DeleteDependency ---
+
+func TestDeleteDependency_Success(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.RemoveDependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep-a",
+	}
+	svc.On("DeleteDependency", mock.Anything, "proj", "1.0.0", "dep-a").
+		Return(nil).Once()
+
+	rr := doJSON(t, h, http.MethodDelete, "/api/v1/dependencies/delete", body)
+	require.Equal(t, http.StatusNoContent, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestDeleteDependency_BadJSON(t *testing.T) {
+	h, _ := setup(t)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/dependencies/delete", bytes.NewBufferString("{invalid"))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestDeleteDependency_Validation(t *testing.T) {
+	h, _ := setup(t)
+	body := depsmanager.RemoveDependencyRequest{} // missing required fields
+	rr := doJSON(t, h, http.MethodDelete, "/api/v1/dependencies/delete", body)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestDeleteDependency_NotFound(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.RemoveDependencyRequest{
+		ProjectName:    "missing",
+		Version:        "0.0.1",
+		DependencyName: "dep",
+	}
+	svc.On("DeleteDependency", mock.Anything, "missing", "0.0.1", "dep").
+		Return(depsmanager.ErrProjectNotFound).Once()
+
+	rr := doJSON(t, h, http.MethodDelete, "/api/v1/dependencies/delete", body)
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestDeleteDependency_InternalError(t *testing.T) {
+	h, svc := setup(t)
+	body := depsmanager.RemoveDependencyRequest{
+		ProjectName:    "proj",
+		Version:        "1.0.0",
+		DependencyName: "dep",
+	}
+	svc.On("DeleteDependency", mock.Anything, "proj", "1.0.0", "dep").
+		Return(errors.New("db failure")).Once()
+
+	rr := doJSON(t, h, http.MethodDelete, "/api/v1/dependencies/delete", body)
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	svc.AssertExpectations(t)
 }

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
@@ -154,6 +155,92 @@ func Test_e2e(t *testing.T) {
 		require.Equal(t, "1.0.0", resp[0].Version)
 	})
 
+	t.Run("Add single dependency", func(t *testing.T) {
+		r := depsmanager.DependencyRequest{DependencyName: "manually", ProjectName: "testproject", Score: 9.0, Version: "1.0.0"}
+		rBytes, err := json.Marshal(r)
+
+		request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/dependencies/new", conf.DepsAddress), bytes.NewReader(rBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		assert.Equal(t, http.StatusCreated, do.StatusCode)
+	})
+	t.Run("Remove dependency", func(t *testing.T) {
+		r := depsmanager.RemoveDependencyRequest{DependencyName: "pkg-c", ProjectName: "testproject", Version: "1.0.0"}
+		rBytes, err := json.Marshal(r)
+
+		request, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/v1/dependencies/delete", conf.DepsAddress), bytes.NewReader(rBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		assert.Equal(t, http.StatusNoContent, do.StatusCode)
+	})
+	t.Run("List dependencies", func(t *testing.T) {
+		request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/dependencies", conf.DepsAddress), bytes.NewReader(reqBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		var resp depsmanager.ListDependenciesResponse
+		err = json.NewDecoder(do.Body).Decode(&resp)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, len(resp.Dependencies))
+
+		want := map[string]float64{"pkg-a": 0, "pkg-b": 5, "manually": 9.0}
+		var correct int
+		for _, d := range resp.Dependencies {
+			if s, ok := want[d.Name]; ok && s == d.Score {
+				correct++
+			}
+		}
+		require.Equal(t, 3, correct)
+	})
+
+	t.Run("Modify dependency", func(t *testing.T) {
+		r := depsmanager.DependencyRequest{DependencyName: "manually", ProjectName: "testproject", Score: 2.0, Version: "1.0.0"}
+		rBytes, err := json.Marshal(r)
+
+		request, err := http.NewRequest(http.MethodPatch, fmt.Sprintf("%s/api/v1/dependencies/modify", conf.DepsAddress), bytes.NewReader(rBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		assert.Equal(t, http.StatusOK, do.StatusCode)
+	})
+	t.Run("List dependencies", func(t *testing.T) {
+		request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/dependencies", conf.DepsAddress), bytes.NewReader(reqBytes))
+		require.NoError(t, err)
+
+		do, err := client.Do(request)
+		require.NoError(t, err)
+		defer do.Body.Close()
+
+		var resp depsmanager.ListDependenciesResponse
+		err = json.NewDecoder(do.Body).Decode(&resp)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, len(resp.Dependencies))
+
+		want := map[string]float64{"pkg-a": 0, "pkg-b": 5, "manually": 2.0}
+		var correct int
+		for _, d := range resp.Dependencies {
+			if s, ok := want[d.Name]; ok && s == d.Score {
+				correct++
+			}
+		}
+		require.Equal(t, 3, correct)
+	})
 }
 
 func attachFakeClient(router chi.Router) chi.Router {

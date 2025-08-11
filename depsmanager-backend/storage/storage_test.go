@@ -279,3 +279,155 @@ func TestGetDependencyNamesByExactScore(t *testing.T) {
 		t.Fatalf("expected empty result for score=99.99, got: %+v", names)
 	}
 }
+
+func TestAddDependency_SuccessAndDuplicate(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	// Create project without deps
+	proj := depsmanager.Project{Name: "pkg-add", Version: "1.0.0", UpdatedAt: time.Now().Unix()}
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      proj,
+		Dependencies: nil,
+	}); err != nil {
+		t.Fatalf("StoreDependencies(seed project): %v", err)
+	}
+
+	// Add first dependency
+	dep := depsmanager.Dependency{Name: "left-pad", Score: 0.82, UpdatedAt: time.Now().Unix()}
+	if err := st.AddDependency(ctx, proj.Name, proj.Version, dep); err != nil {
+		t.Fatalf("AddDependency(first): %v", err)
+	}
+
+	// Verify it's there
+	got, err := st.ListProjectDependencies(ctx, proj.Name, proj.Version)
+	if err != nil {
+		t.Fatalf("ListProjectDependencies: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != dep.Name || got[0].Score != dep.Score {
+		t.Fatalf("unexpected deps after add: %+v", got)
+	}
+
+	// Add the same dependency again -> UNIQUE violation error expected
+	if err := st.AddDependency(ctx, proj.Name, proj.Version, dep); err == nil {
+		t.Fatalf("expected error on duplicate AddDependency, got nil")
+	}
+}
+
+func TestAddDependency_ProjectNotFound(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	err := st.AddDependency(ctx, "missing", "0.0.1", depsmanager.Dependency{Name: "x", Score: 0.1, UpdatedAt: time.Now().Unix()})
+	if !errors.Is(err, depsmanager.ErrProjectNotFound) {
+		t.Fatalf("expected ErrProjectNotFound, got: %v", err)
+	}
+}
+
+func TestDeleteDependency_Success(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	proj := depsmanager.Project{Name: "pkg-del", Version: "2.0.0", UpdatedAt: time.Now().Unix()}
+	deps := []depsmanager.Dependency{
+		{Name: "a", Score: 0.11, UpdatedAt: time.Now().Unix()},
+		{Name: "b", Score: 0.22, UpdatedAt: time.Now().Unix()},
+	}
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{Project: proj, Dependencies: deps}); err != nil {
+		t.Fatalf("StoreDependencies: %v", err)
+	}
+
+	// Delete one dep
+	if err := st.DeleteDependency(ctx, proj.Name, proj.Version, "a"); err != nil {
+		t.Fatalf("DeleteDependency: %v", err)
+	}
+
+	// Verify only "b" remains
+	got, err := st.ListProjectDependencies(ctx, proj.Name, proj.Version)
+	if err != nil {
+		t.Fatalf("ListProjectDependencies: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "b" {
+		t.Fatalf("unexpected deps after delete: %+v", got)
+	}
+}
+
+func TestDeleteDependency_NotFoundDep(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	proj := depsmanager.Project{Name: "pkg-del-missing", Version: "1.0.0", UpdatedAt: time.Now().Unix()}
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{Project: proj, Dependencies: []depsmanager.Dependency{
+		{Name: "only", Score: 0.33, UpdatedAt: time.Now().Unix()},
+	}}); err != nil {
+		t.Fatalf("StoreDependencies: %v", err)
+	}
+
+	// Try deleting a non-existing dep  sql.ErrNoRows
+	if err := st.DeleteDependency(ctx, proj.Name, proj.Version, "nope"); !errors.Is(err, depsmanager.ErrDependencyNotFound) {
+		t.Fatalf("expected depsmanager.ErrDependencyNotFound, got: %v", err)
+	}
+}
+
+func TestDeleteDependency_ProjectNotFound(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	if err := st.DeleteDependency(ctx, "ghost", "9.9.9", "x"); !errors.Is(err, depsmanager.ErrProjectNotFound) {
+		t.Fatalf("expected ErrProjectNotFound, got: %v", err)
+	}
+}
+
+func TestUpdateDependency_Success(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	proj := depsmanager.Project{Name: "pkg-upd", Version: "3.0.0", UpdatedAt: time.Now().Unix()}
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      proj,
+		Dependencies: []depsmanager.Dependency{{Name: "dep", Score: 0.4, UpdatedAt: time.Now().Unix()}},
+	}); err != nil {
+		t.Fatalf("StoreDependencies: %v", err)
+	}
+
+	// Update dep score and timestamp
+	newDep := depsmanager.Dependency{Name: "dep", Score: 0.75, UpdatedAt: time.Now().Unix() + 10}
+	if err := st.UpdateDependency(ctx, proj.Name, proj.Version, newDep); err != nil {
+		t.Fatalf("UpdateDependency: %v", err)
+	}
+
+	// Verify update
+	got, err := st.ListProjectDependencies(ctx, proj.Name, proj.Version)
+	if err != nil {
+		t.Fatalf("ListProjectDependencies: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "dep" || got[0].Score != 0.75 || got[0].UpdatedAt != newDep.UpdatedAt {
+		t.Fatalf("unexpected dep after update: %+v", got)
+	}
+}
+
+func TestUpdateDependency_NotFoundDep(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	proj := depsmanager.Project{Name: "pkg-upd-missing", Version: "1.0.0", UpdatedAt: time.Now().Unix()}
+	if err := st.StoreDependencies(ctx, depsmanager.ProjectDependencyRecord{
+		Project:      proj,
+		Dependencies: []depsmanager.Dependency{{Name: "exists", Score: 0.2, UpdatedAt: time.Now().Unix()}},
+	}); err != nil {
+		t.Fatalf("StoreDependencies: %v", err)
+	}
+
+	if err := st.UpdateDependency(ctx, proj.Name, proj.Version, depsmanager.Dependency{Name: "nope", Score: 0.9, UpdatedAt: time.Now().Unix()}); !errors.Is(err, depsmanager.ErrDependencyNotFound) {
+		t.Fatalf("expected depsmanager.ErrDependencyNotFound, got: %v", err)
+	}
+}
+
+func TestUpdateDependency_ProjectNotFound(t *testing.T) {
+	st := newInMemoryStorage(t)
+	ctx := context.Background()
+
+	if err := st.UpdateDependency(ctx, "missing", "0.0.1", depsmanager.Dependency{Name: "x", Score: 0.1, UpdatedAt: time.Now().Unix()}); !errors.Is(err, depsmanager.ErrProjectNotFound) {
+		t.Fatalf("expected ErrProjectNotFound, got: %v", err)
+	}
+}

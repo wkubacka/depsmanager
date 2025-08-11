@@ -9,6 +9,17 @@ definitions:
       updated_at:
         type: integer
     type: object
+  depsmanager.DependencyRequest:
+    properties:
+      Version:
+        type: string
+      dependency_name:
+        type: string
+      project_name:
+        type: string
+      score:
+        type: number
+    type: object
   depsmanager.GetDependenciesByScore:
     properties:
       score:
@@ -44,6 +55,15 @@ definitions:
       version:
         type: string
     type: object
+  depsmanager.RemoveDependencyRequest:
+    properties:
+      Version:
+        type: string
+      dependency_name:
+        type: string
+      project_name:
+        type: string
+    type: object
 info:
   contact: {}
   title: DepsManager
@@ -77,7 +97,7 @@ paths:
       tags:
       - dependencies
   /v1/dependencies/byprojectname:
-    get:
+    post:
       consumes:
       - application/json
       description: List projects by dependency name.
@@ -105,7 +125,7 @@ paths:
       tags:
       - dependencies
   /v1/dependencies/byscore:
-    get:
+    post:
       consumes:
       - application/json
       description: Get dependencies by score.
@@ -130,6 +150,80 @@ paths:
         "500":
           description: internal error
       summary: DependenciesByScore
+      tags:
+      - dependencies
+  /v1/dependencies/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Delete dependency for project
+      parameters:
+      - description: request body
+        in: body
+        name: r.body
+        required: true
+        schema:
+          $ref: '#/definitions/depsmanager.RemoveDependencyRequest'
+      responses:
+        "204":
+          description: deleted
+        "400":
+          description: cannot decode body
+        "404":
+          description: not found project
+        "500":
+          description: internal error
+      summary: DeleteDependency
+      tags:
+      - dependencies
+  /v1/dependencies/modify:
+    patch:
+      consumes:
+      - application/json
+      description: Modify manually dependency for project.
+      parameters:
+      - description: request body
+        in: body
+        name: r.body
+        required: true
+        schema:
+          $ref: '#/definitions/depsmanager.DependencyRequest'
+      responses:
+        "200":
+          description: modified
+        "400":
+          description: cannot decode body
+        "404":
+          description: not found project
+        "500":
+          description: internal error
+      summary: ModifyDependency
+      tags:
+      - dependencies
+  /v1/dependencies/new:
+    post:
+      consumes:
+      - application/json
+      description: Add manually dependency to storage for project.
+      parameters:
+      - description: request body
+        in: body
+        name: r.body
+        required: true
+        schema:
+          $ref: '#/definitions/depsmanager.DependencyRequest'
+      responses:
+        "201":
+          description: created
+        "400":
+          description: cannot decode body
+        "404":
+          description: not found project
+        "409":
+          description: dependency with this name already exists
+        "500":
+          description: internal error
+      summary: AddDependency
       tags:
       - dependencies
   /v1/projects:

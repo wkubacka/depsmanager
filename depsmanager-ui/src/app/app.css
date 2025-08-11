@@ -114,7 +114,7 @@ input, select {
 }
 
 .input-lg {
-  width: clamp(320px, 50vw, 640px); /* grows with viewport, but caps */
+  width: clamp(320px, 50vw, 640px);
   max-width: 100%;
   min-height: 44px;
   padding: 10px 14px;
@@ -123,15 +123,18 @@ input, select {
   border-radius: 10px;
 }
 
-/* Nice alignment of input + button in the small search forms */
 .subcard form {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap; /* on narrow screens button drops to new line */
+  flex-wrap: wrap;
 }
 
 .subcard form button {
   min-height: 44px;
   padding: 10px 14px;
 }
+
+.actions-col { width: 220px; }
+.actions button { margin-right: 6px; }
+.row-error .error { margin-top: 0; }

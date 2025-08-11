@@ -6,7 +6,9 @@ import (
 )
 
 var (
-	ErrProjectNotFound = errors.New("project not found")
+	ErrProjectNotFound         = errors.New("project not found")
+	ErrDependencyNotFound      = errors.New("dependency not found")
+	ErrDependencyAlreadyExists = errors.New("dependency already exists")
 )
 
 type ProjectRequest struct {
@@ -36,6 +38,19 @@ type Dependency struct {
 	Score     float64 `json:"score"`
 	Name      string  `json:"name"`
 	UpdatedAt int64   `json:"updated_at"`
+}
+
+type DependencyRequest struct {
+	ProjectName    string  `json:"project_name"`
+	Version        string  `json:"Version"`
+	Score          float64 `json:"score"`
+	DependencyName string  `json:"dependency_name"`
+}
+
+type RemoveDependencyRequest struct {
+	ProjectName    string `json:"project_name"`
+	Version        string `json:"Version"`
+	DependencyName string `json:"dependency_name"`
 }
 
 type Project struct {

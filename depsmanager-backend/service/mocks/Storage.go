@@ -14,6 +14,42 @@ type Storage struct {
 	mock.Mock
 }
 
+// AddDependency provides a mock function with given fields: ctx, projectName, version, dep
+func (_m *Storage) AddDependency(ctx context.Context, projectName string, version string, dep depsmanager.Dependency) error {
+	ret := _m.Called(ctx, projectName, version, dep)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddDependency")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, depsmanager.Dependency) error); ok {
+		r0 = rf(ctx, projectName, version, dep)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeleteDependency provides a mock function with given fields: ctx, projectName, version, depName
+func (_m *Storage) DeleteDependency(ctx context.Context, projectName string, version string, depName string) error {
+	ret := _m.Called(ctx, projectName, version, depName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteDependency")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, projectName, version, depName)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // DeleteProject provides a mock function with given fields: ctx, projectName, version
 func (_m *Storage) DeleteProject(ctx context.Context, projectName string, version string) error {
 	ret := _m.Called(ctx, projectName, version)
@@ -163,6 +199,24 @@ func (_m *Storage) StoreDependencies(ctx context.Context, deps depsmanager.Proje
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, depsmanager.ProjectDependencyRecord) error); ok {
 		r0 = rf(ctx, deps)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateDependency provides a mock function with given fields: ctx, projectName, version, dep
+func (_m *Storage) UpdateDependency(ctx context.Context, projectName string, version string, dep depsmanager.Dependency) error {
+	ret := _m.Called(ctx, projectName, version, dep)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateDependency")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, depsmanager.Dependency) error); ok {
+		r0 = rf(ctx, projectName, version, dep)
 	} else {
 		r0 = ret.Error(0)
 	}

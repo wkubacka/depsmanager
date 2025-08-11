@@ -60,19 +60,33 @@ export class AppComponent implements OnInit {
     scales: { x: {}, y: { beginAtZero: true, suggestedMax: 10 } },
   };
 
-  // 1) Projects by dependency name
+  // Searchers
   depSearchCtrl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
   depSearchLoading = false;
   depSearchError = '';
   projectsByDep: Project[] = [];
 
-  // 2) Dependency names by exact score
   scoreSearchCtrl = new FormControl<number | null>(null, {
     validators: [Validators.required, Validators.min(0), Validators.max(1)],
   });
   scoreSearchLoading = false;
   scoreSearchError = '';
   depsByScore: string[] = [];
+
+  // --- Add/Edit/Delete dependency state ---
+  addDepOpen = false;
+  addDepNameCtrl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
+  addDepScoreCtrl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
+  addDepLoading = false;
+  addDepError = '';
+
+  editingDepName: string | null = null;
+  editScoreCtrl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
+  editDepLoading = false;
+  editDepError = '';
+
+  deletingDep: Record<string, boolean> = {};
+  deleteDepError: Record<string, string> = {};
 
   constructor(private api: DepsApiService) {}
 
@@ -212,8 +226,17 @@ export class AppComponent implements OnInit {
   onListDependenciesFor(projectName: string, version: string) {
     this.selectedProjectName = projectName;
     this.selectedVersion = version;
+
+    // reset add/edit state when switching project
+    this.addDepOpen = false;
+    this.addDepError = '';
+    this.addDepNameCtrl.setValue('');
+    this.addDepScoreCtrl.setValue('');
+    this.editingDepName = null;
+    this.editDepError = '';
+
     this.depsError = '';
-       this.isLoadingDeps = true;
+    this.isLoadingDeps = true;
 
     this.api.listDependencies(projectName, version).subscribe({
       next: (resp: ListDependenciesResponse) => {
@@ -234,14 +257,9 @@ export class AppComponent implements OnInit {
     if (!confirm(`Remove project ${projectName}@${version}?`)) return;
 
     this.api.removeProject(projectName, version).subscribe({
-      next: () => {
-        this.loadProjects();
-      },
-      error: (err) => {
-        this.projectsError = this.humanizeHttpError(err);
-      },
+      next: () => this.loadProjects(),
+      error: (err) => { this.projectsError = this.humanizeHttpError(err); },
     });
-    
   }
 
   // Filtering helpers
@@ -259,6 +277,7 @@ export class AppComponent implements OnInit {
     };
   }
 
+  // Searchers
   searchProjectsByDependency(): void {
     this.depSearchError = '';
     this.projectsByDep = [];
@@ -269,10 +288,7 @@ export class AppComponent implements OnInit {
     }
     this.depSearchLoading = true;
     this.api.searchProjectsByDependencyName(dep).subscribe({
-      next: (rows) => {
-        this.depSearchLoading = false;
-        this.projectsByDep = rows || [];
-      },
+      next: (rows) => { this.depSearchLoading = false; this.projectsByDep = rows || []; },
       error: (err) => {
         this.depSearchLoading = false;
         const s = err?.status;
@@ -296,17 +312,14 @@ export class AppComponent implements OnInit {
     this.depsByScore = [];
 
     const scoreParsed = this.parseScore(this.scoreSearchCtrl.value);
-    if (scoreParsed == null || scoreParsed <- 10 || scoreParsed > 10) {
+    if (scoreParsed == null || scoreParsed < -10 || scoreParsed > 10) {
       this.scoreSearchError = 'Score must be a number in the range -10..10.';
       return;
     }
 
     this.scoreSearchLoading = true;
     this.api.searchDependenciesByScore(scoreParsed).subscribe({
-      next: (names) => {
-        this.scoreSearchLoading = false;
-        this.depsByScore = names ?? [];
-      },
+      next: (names) => { this.scoreSearchLoading = false; this.depsByScore = names ?? []; },
       error: (err) => {
         this.scoreSearchLoading = false;
         const s = err?.status;
@@ -314,6 +327,111 @@ export class AppComponent implements OnInit {
         else if (s === 400) this.scoreSearchError = 'Bad request.';
         else this.scoreSearchError = 'Server error. Please try again.';
       },
+    });
+  }
+
+  // --- NEW: Add/Edit/Delete dependency actions ---
+
+  openAddDependency(): void {
+    this.addDepOpen = true;
+    this.addDepError = '';
+    this.addDepNameCtrl.setValue('');
+    this.addDepScoreCtrl.setValue('');
+  }
+
+  cancelAddDependency(): void {
+    this.addDepOpen = false;
+    this.addDepError = '';
+  }
+
+  submitAddDependency(): void {
+    if (!this.selectedProjectName || !this.selectedVersion) return;
+
+    const depName = (this.addDepNameCtrl.value || '').trim();
+    const parsed = this.parseScore(this.addDepScoreCtrl.value);
+    if (!depName) {
+      this.addDepError = 'Dependency name is required.';
+      return;
+    }
+    if (parsed == null || parsed < -10 || parsed > 10) {
+      this.addDepError = 'Score must be a number in the range -10..10.';
+      return;
+    }
+
+    this.addDepLoading = true;
+    this.api.addDependency(this.selectedProjectName, this.selectedVersion, depName, parsed).subscribe({
+      next: () => {
+        this.addDepLoading = false;
+        this.addDepOpen = false;
+        this.onListDependenciesFor(this.selectedProjectName!, this.selectedVersion!);
+      },
+      error: (err) => {
+        this.addDepLoading = false;
+        const s = err?.status;
+        if (s === 409) this.addDepError = 'Dependency already exists for this project.';
+        else if (s === 404) this.addDepError = 'Project not found.';
+        else if (s === 400) this.addDepError = 'Bad request.';
+        else this.addDepError = 'Server error. Please try again.';
+      }
+    });
+  }
+
+  startEditDependency(dep: Dependency): void {
+    this.editingDepName = dep.name;
+    this.editDepError = '';
+    this.editScoreCtrl.setValue(String(dep.score));
+  }
+
+  cancelEditDependency(): void {
+    this.editingDepName = null;
+    this.editDepError = '';
+  }
+
+  submitEditDependency(depName: string): void {
+    if (!this.selectedProjectName || !this.selectedVersion) return;
+    const parsed = this.parseScore(this.editScoreCtrl.value);
+    if (parsed == null || parsed < -10 || parsed > 10) {
+      this.editDepError = 'Score must be a number in the range -10..10.';
+      return;
+    }
+
+    this.editDepLoading = true;
+    this.api.modifyDependency(this.selectedProjectName, this.selectedVersion, depName, parsed).subscribe({
+      next: () => {
+        this.editDepLoading = false;
+        this.editingDepName = null;
+        this.onListDependenciesFor(this.selectedProjectName!, this.selectedVersion!);
+      },
+      error: (err) => {
+        this.editDepLoading = false;
+        const s = err?.status;
+        if (s === 404) this.editDepError = 'Project or dependency not found.';
+        else if (s === 400) this.editDepError = 'Bad request.';
+        else this.editDepError = 'Server error. Please try again.';
+      }
+    });
+  }
+
+  deleteDependency(depName: string): void {
+    if (!this.selectedProjectName || !this.selectedVersion) return;
+    if (!confirm(`Delete dependency "${depName}"?`)) return;
+
+    this.deletingDep[depName] = true;
+    this.deleteDepError[depName] = '';
+
+    this.api.removeDependencyItem(this.selectedProjectName, this.selectedVersion, depName).subscribe({
+      next: () => {
+        this.deletingDep[depName] = false;
+        delete this.deletingDep[depName];
+        this.onListDependenciesFor(this.selectedProjectName!, this.selectedVersion!);
+      },
+      error: (err) => {
+        this.deletingDep[depName] = false;
+        const s = err?.status;
+        if (s === 404) this.deleteDepError[depName] = 'Project or dependency not found.';
+        else if (s === 400) this.deleteDepError[depName] = 'Bad request.';
+        else this.deleteDepError[depName] = 'Server error. Please try again.';
+      }
     });
   }
 

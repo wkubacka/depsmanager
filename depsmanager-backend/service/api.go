@@ -20,6 +20,10 @@ type Service interface {
 	ListProjectVersions(ctx context.Context, projectName string) ([]string, error)
 	GetProjectsByDependency(ctx context.Context, depName string) ([]depsmanager.Project, error)
 	GetDependenciesByExactScore(ctx context.Context, score float64) ([]string, error)
+
+	AddDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error
+	UpdateDependency(ctx context.Context, projectName, version string, dep depsmanager.Dependency) error
+	DeleteDependency(ctx context.Context, projectName, version, depName string) error
 }
 type API struct {
 	service Service
@@ -46,11 +50,16 @@ func (a *API) GetHandler() chi.Router {
 			r.Get("/", customErr.HandleError(a.ListProjects))
 			r.Get("/versions", customErr.HandleError(a.ProjectVersions))
 		})
-		r.Post("/v1/dependencies", customErr.HandleError(a.ListDependencies))
-		r.Post("/v1/dependencies/byprojectname", customErr.HandleError(a.ProjectByDependency))
-		r.Post("/v1/dependencies/byscore", customErr.HandleError(a.DependenciesByScore))
-	})
+		r.Route("/v1/dependencies", func(r chi.Router) {
+			r.Post("/", customErr.HandleError(a.ListDependencies))
+			r.Post("/new", customErr.HandleError(a.AddDependency))
+			r.Patch("/modify", customErr.HandleError(a.ModifyDependency))
+			r.Delete("/delete", customErr.HandleError(a.DeleteDependency))
 
+			r.Post("/byprojectname", customErr.HandleError(a.ProjectByDependency))
+			r.Post("/byscore", customErr.HandleError(a.DependenciesByScore))
+		})
+	})
 	return r
 }
 
@@ -281,6 +290,112 @@ func (a *API) DependenciesByScore(w http.ResponseWriter, r *http.Request) error 
 		return customErr.NewInternal(fmt.Errorf("json.NewEncoder(w).Encode(resp)"))
 	}
 
+	return nil
+}
+
+// AddDependency
+// @summary AddDependency
+// @description Add manually dependency to storage for project.
+// @tags dependencies
+// @accept json
+// @param request r.body body depsmanager.DependencyRequest true "request body"
+// @failure 500 "internal error"
+// @failure 409 "dependency with this name already exists"
+// @failure 404 "not found project"
+// @failure 400 "cannot decode body"
+// @Success 201 "created"
+// @Router /v1/dependencies/new [post]
+func (a *API) AddDependency(w http.ResponseWriter, r *http.Request) error {
+	var req depsmanager.DependencyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return customErr.NewBadRequest(fmt.Errorf("json.NewDecoder(r.Body).Decode(&req): %w", err))
+	}
+
+	if req.ProjectName == "" || req.Version == "" || req.DependencyName == "" {
+		return customErr.NewBadRequest(fmt.Errorf("req.ProjectName or req.Version or req.DependencyName is required"))
+	}
+
+	if err := a.service.AddDependency(r.Context(), req.ProjectName, req.Version, depsmanager.Dependency{
+		Score: req.Score,
+		Name:  req.DependencyName,
+	}); err != nil {
+		if errors.Is(err, depsmanager.ErrProjectNotFound) {
+			return customErr.NewNotFound(err)
+		}
+		if errors.Is(err, depsmanager.ErrDependencyAlreadyExists) {
+			return customErr.NewConflict(err)
+		}
+		return customErr.NewInternal(fmt.Errorf("service.AddDependency: %w", err))
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	return nil
+}
+
+// ModifyDependency
+// @summary ModifyDependency
+// @description Modify manually dependency for project.
+// @tags dependencies
+// @accept json
+// @param request r.body body depsmanager.DependencyRequest true "request body"
+// @failure 500 "internal error"
+// @failure 404 "not found project"
+// @failure 400 "cannot decode body"
+// @Success 200 "modified"
+// @Router /v1/dependencies/modify [patch]
+func (a *API) ModifyDependency(w http.ResponseWriter, r *http.Request) error {
+	var req depsmanager.DependencyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return customErr.NewBadRequest(fmt.Errorf("json.NewDecoder(r.Body).Decode(&req): %w", err))
+	}
+
+	if req.ProjectName == "" || req.Version == "" || req.DependencyName == "" {
+		return customErr.NewBadRequest(fmt.Errorf("req.ProjectName or req.Version or req.DependencyName is required"))
+	}
+
+	if err := a.service.UpdateDependency(r.Context(), req.ProjectName, req.Version, depsmanager.Dependency{
+		Score: req.Score,
+		Name:  req.DependencyName,
+	}); err != nil {
+		if errors.Is(err, depsmanager.ErrProjectNotFound) {
+			return customErr.NewNotFound(err)
+		}
+		return customErr.NewInternal(fmt.Errorf("service.UpdateDependency: %w", err))
+	}
+
+	w.WriteHeader(http.StatusOK)
+	return nil
+}
+
+// DeleteDependency
+// @summary DeleteDependency
+// @description Delete dependency for project
+// @tags dependencies
+// @accept json
+// @param request r.body body depsmanager.RemoveDependencyRequest true "request body"
+// @failure 500 "internal error"
+// @failure 404 "not found project"
+// @failure 400 "cannot decode body"
+// @Success 204 "deleted"
+// @Router /v1/dependencies/delete [delete]
+func (a *API) DeleteDependency(w http.ResponseWriter, r *http.Request) error {
+	var req depsmanager.RemoveDependencyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return customErr.NewBadRequest(fmt.Errorf("json.NewDecoder(r.Body).Decode(&req): %w", err))
+	}
+
+	if req.ProjectName == "" || req.Version == "" || req.DependencyName == "" {
+		return customErr.NewBadRequest(fmt.Errorf("req.ProjectName or req.Version or req.DependencyName is required"))
+	}
+
+	if err := a.service.DeleteDependency(r.Context(), req.ProjectName, req.Version, req.DependencyName); err != nil {
+		if errors.Is(err, depsmanager.ErrProjectNotFound) {
+			return customErr.NewNotFound(err)
+		}
+		return customErr.NewInternal(fmt.Errorf("service.DeleteDependency: %w", err))
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 

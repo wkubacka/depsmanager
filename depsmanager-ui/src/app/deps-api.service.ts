@@ -11,7 +11,7 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class DepsApiService {
-  private base = environment.apiBaseUrl; // '/api'
+  private base = environment.apiBaseUrl; // e.g. '/api'
 
   constructor(private http: HttpClient) {}
 
@@ -44,8 +44,7 @@ export class DepsApiService {
     return this.http.get<ProjectVersionsResponse>(`${this.base}/v1/projects/versions`, { params });
   }
 
-  // --- NEW: Search endpoints (POST) ---
-
+  // Search endpoints (POST)
   /** POST /v1/dependencies/byprojectname  { dependency_name } -> Project[] */
   searchProjectsByDependencyName(dependency_name: string): Observable<Project[]> {
     return this.http.post<Project[]>(`${this.base}/v1/dependencies/byprojectname`, { dependency_name });
@@ -54,5 +53,26 @@ export class DepsApiService {
   /** POST /v1/dependencies/byscore { score } -> string[] */
   searchDependenciesByScore(score: number): Observable<string[]> {
     return this.http.post<string[]>(`${this.base}/v1/dependencies/byscore`, { score });
+  }
+
+  /** POST /v1/dependencies/new */
+  addDependency(project_name: string, version: string, dependency_name: string, score: number): Observable<void> {
+    return this.http.post<void>(`${this.base}/v1/dependencies/new`, {
+      project_name, version, dependency_name, score
+    });
+  }
+
+  /** PATCH /v1/dependencies/modify */
+  modifyDependency(project_name: string, version: string, dependency_name: string, score: number): Observable<void> {
+    return this.http.patch<void>(`${this.base}/v1/dependencies/modify`, {
+      project_name, version, dependency_name, score
+    });
+  }
+
+  /** DELETE /v1/dependencies/delete */
+  removeDependencyItem(project_name: string, version: string, dependency_name: string): Observable<void> {
+    return this.http.request<void>('DELETE', `${this.base}/v1/dependencies/delete`, {
+      body: { project_name, version, dependency_name }
+    });
   }
 }
